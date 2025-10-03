@@ -1,0 +1,6 @@
+{
+  "BrettMayson.HEMTT": {
+    "Blacklist": ["1.17.0"],
+    "Fallback": "1.16.4"
+  }
+}
