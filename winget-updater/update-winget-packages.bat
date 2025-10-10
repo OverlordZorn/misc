@@ -21,6 +21,6 @@ if "%DRY_RUN%"=="1" (
 )
 
 REM Optional: pause to see any messages when testing
-pause
+REM pause
 
 exit /b
