@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 """
 Syncs files from the local Data directory into multiple GitHub repositories.
-
-✅ Uses PATH_MAP to decide where to place synced files.
-✅ Supports global and per-repo ignore lists.
-✅ Commits each file individually with descriptive commit messages.
-✅ Dry-run mode supported.
-✅ Logs all actions to a timestamped protocol file.
-✅ Uses GITHUB_TOKEN for authentication (via env var or CLI arg).
 """
 
 import os
 import sys
 import base64
 import requests
-from datetime import datetime
 from sync_data import REPOSITORIES, IGNORE_FILES, PATH_MAP
 
 API_BASE = "https://api.github.com"
 
-# ---------------------------
-# TOKEN SETUP
-# ---------------------------
+# Token setup
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[2] if len(sys.argv) > 2 else None)
 if not GITHUB_TOKEN:
     sys.exit("❌ ERROR: Missing GitHub token. Set GITHUB_TOKEN as an environment variable or pass as CLI arg.")
@@ -32,25 +22,8 @@ HEADERS = {
 }
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "Data")
-
 MODE = sys.argv[1] if len(sys.argv) > 1 else "dry-run"
 DRY_RUN = MODE.lower() == "dry-run"
-
-# Timestamped protocol filename
-timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-PROTOCOL_PATH = os.path.join(os.path.dirname(__file__), f"protocol_{timestamp}.md")
-
-protocol_entries = []
-
-
-# ---------------------------
-# HELPER FUNCTIONS
-# ---------------------------
-
-def log(msg):
-    """Log a message to console and protocol."""
-    print(msg)
-    protocol_entries.append(msg)
 
 
 def should_ignore(repo_info, relative_path):
@@ -69,8 +42,11 @@ def map_relative_path(relative_path):
     for local_prefix, remote_prefix in PATH_MAP.items():
         if relative_path.startswith(local_prefix):
             remainder = relative_path[len(local_prefix):]
-            return os.path.join(remote_prefix, remainder).replace("\\", "/")
-    return relative_path  # fallback: keep same structure
+            mapped = os.path.join(remote_prefix, remainder).replace("\\", "/")
+            print(f"  🔀 Mapped: {relative_path} → {mapped}")
+            return mapped
+    print(f"  ⚠️  No mapping found for: {relative_path} (using as-is)")
+    return relative_path
 
 
 def get_remote_file(owner, repo, path):
@@ -83,8 +59,8 @@ def get_remote_file(owner, repo, path):
 def upload_file(owner, repo, path, content, message):
     """Upload or update a single file in the repo."""
     if DRY_RUN:
-        log(f"🧪 [Dry-run] Would sync: {owner}/{repo}/{path} ({message})")
-        return
+        print(f"[Dry-run] Would sync: {owner}/{repo}/{path}")
+        return True
 
     remote_file = get_remote_file(owner, repo, path)
     data = {
@@ -99,24 +75,24 @@ def upload_file(owner, repo, path, content, message):
     r = requests.put(url, headers=HEADERS, json=data)
 
     if r.status_code not in (200, 201):
-        log(f"❌ Failed to upload {owner}/{repo}/{path}: {r.status_code} - {r.text}")
+        print(f"❌ Failed: {owner}/{repo}/{path} - {r.status_code}")
+        return False
     else:
-        log(f"✅ Synced: {owner}/{repo}/{path}")
+        print(f"✅ Synced: {owner}/{repo}/{path}")
+        return True
 
-
-# ---------------------------
-# MAIN LOGIC
-# ---------------------------
 
 def main():
-    log(f"# 🧩 GitHub Workflow Sync Protocol")
-    log(f"**Mode:** {'Dry-Run' if DRY_RUN else 'Real'}")
-    log(f"**Timestamp:** {datetime.utcnow().isoformat()} UTC\n")
+    print(f"Mode: {'Dry-Run' if DRY_RUN else 'Real'}\n")
 
     for repo_info in REPOSITORIES:
         owner = repo_info["owner"]
         repo = repo_info["repo"]
-        log(f"## 📦 Syncing {owner}/{repo}")
+        print(f"📦 {owner}/{repo}")
+
+        if not os.path.exists(DATA_DIR):
+            print(f"❌ Data directory not found: {DATA_DIR}")
+            continue
 
         for root, _, files in os.walk(DATA_DIR):
             for file in files:
@@ -124,13 +100,16 @@ def main():
                 relative_path = os.path.relpath(full_path, DATA_DIR).replace("\\", "/")
 
                 if should_ignore(repo_info, relative_path):
-                    log(f"🚫 Ignored: {owner}/{repo}/{relative_path}")
                     continue
 
                 mapped_path = map_relative_path(relative_path)
 
-                with open(full_path, "r", encoding="utf-8") as f:
-                    content = f.read()
+                try:
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except Exception as e:
+                    print(f"❌ Failed to read {relative_path}: {e}")
+                    continue
 
                 upload_file(
                     owner,
@@ -140,11 +119,7 @@ def main():
                     f"📝 Updated {mapped_path}"
                 )
 
-    # Write protocol log
-    with open(PROTOCOL_PATH, "w", encoding="utf-8") as f:
-        f.write("\n".join(protocol_entries))
-
-    log(f"\n✅ Sync complete! Protocol saved to {PROTOCOL_PATH}")
+    print("\n✅ Sync complete!")
 
 
 if __name__ == "__main__":
