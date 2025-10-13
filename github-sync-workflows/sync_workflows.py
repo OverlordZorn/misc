@@ -11,15 +11,31 @@ from sync_data import REPOSITORIES, IGNORE_FILES, PATH_MAP
 
 API_BASE = "https://api.github.com"
 
-# Token setup
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[2] if len(sys.argv) > 2 else None)
-if not GITHUB_TOKEN:
-    sys.exit("❌ ERROR: Missing GitHub token. Set GITHUB_TOKEN as an environment variable or pass as CLI arg.")
+# Token setup - support multiple PATs for different orgs
+def get_token_for_repo(owner):
+    """Get the appropriate token for a repo owner."""
+    # Try owner-specific token first (e.g., PAT_CVO_ORG)
+    org_token = os.getenv(f"PAT_{owner.upper().replace('-', '_')}")
+    if org_token:
+        return org_token
+    
+    # Fall back to default PAT
+    default_token = os.getenv("PAT") or (sys.argv[2] if len(sys.argv) > 2 else None)
+    if default_token:
+        return default_token
+    
+    return None
 
-HEADERS = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json"
-}
+def get_headers(owner):
+    """Get authorization headers for a repo owner."""
+    token = get_token_for_repo(owner)
+    if not token:
+        sys.exit(f"❌ ERROR: Missing GitHub token for {owner}. Set PAT or PAT_{owner.upper().replace('-', '_')} as an environment variable.")
+    
+    return {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "Data")
 MODE = sys.argv[1] if len(sys.argv) > 1 else "dry-run"
@@ -52,7 +68,7 @@ def map_relative_path(relative_path):
 def get_remote_file(owner, repo, path):
     """Fetch existing file info (for update checks)."""
     url = f"{API_BASE}/repos/{owner}/{repo}/contents/{path}"
-    r = requests.get(url, headers=HEADERS)
+    r = requests.get(url, headers=get_headers(owner))
     return r.json() if r.status_code == 200 else None
 
 
@@ -84,7 +100,7 @@ def ensure_directory(owner, repo, path):
         }
         
         url = f"{API_BASE}/repos/{owner}/{repo}/contents/{gitkeep_path}"
-        r = requests.put(url, headers=HEADERS, json=data)
+        r = requests.put(url, headers=get_headers(owner), json=data)
         
         if r.status_code not in (200, 201):
             try:
@@ -121,7 +137,7 @@ def upload_file(owner, repo, path, content, message):
         data["sha"] = remote_file["sha"]
 
     url = f"{API_BASE}/repos/{owner}/{repo}/contents/{path}"
-    r = requests.put(url, headers=HEADERS, json=data)
+    r = requests.put(url, headers=get_headers(owner), json=data)
 
     if r.status_code not in (200, 201):
         print(f"❌ Failed: {owner}/{repo}/{path} - {r.status_code}")
