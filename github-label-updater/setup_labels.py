@@ -5,7 +5,8 @@ Setup script to create or update GitHub labels across multiple repositories.
 - Keeps curated labels from labels_data.py
 - Deletes labels not in the curated set unless whitelisted
 - Supports optional dry-run mode
-- Provides summary of actions at the end
+- Logs which labels were created, updated, deleted, or skipped
+- Provides per-repo mini-summary for GitHub Actions
 """
 
 import os
@@ -18,16 +19,17 @@ from repos_data import REPOSITORIES
 # CONFIGURATION
 # ---------------------------
 
-# Token is passed via GitHub Action environment variable or CLI argument
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[1] if len(sys.argv) > 1 else None)
 if not GITHUB_TOKEN:
     sys.exit("❌ ERROR: Missing GitHub token. Pass it via env var GITHUB_TOKEN or as CLI arg.")
 
-# Set True to preview deletions without making changes
 DRY_RUN = False
 
-# Labels that are protected from deletion even if not in LABELS
-WHITELIST_LABELS = [ "Legacy" ]
+WHITELIST_LABELS = [
+    "Do Not Delete",
+    "Important",
+    "Legacy"
+]
 
 API_BASE = "https://api.github.com"
 
@@ -36,7 +38,6 @@ API_BASE = "https://api.github.com"
 # ---------------------------
 
 def create_or_update_label(owner, repo, label, token):
-    """Creates or updates a single label in a GitHub repository."""
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
@@ -47,23 +48,17 @@ def create_or_update_label(owner, repo, label, token):
     if response.status_code == 200:
         r = requests.patch(url, headers=headers, json=label)
         if r.status_code in (200, 201):
-            return "updated"
+            return "updated", label['name']
         else:
-            print(f"❌ Failed to update '{label['name']}' in {owner}/{repo}: {r.status_code} - {r.text}")
-            return "failed"
+            return "failed", label['name']
     else:
         r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=headers, json=label)
         if r.status_code in (200, 201):
-            return "created"
+            return "created", label['name']
         else:
-            print(f"❌ Failed to create '{label['name']}' in {owner}/{repo}: {r.status_code} - {r.text}")
-            return "failed"
+            return "failed", label['name']
 
 def delete_untracked_labels(owner, repo, token, labels_to_keep, whitelist):
-    """
-    Delete all labels in the repo that are NOT in labels_to_keep or the whitelist.
-    Returns a list of deleted label names.
-    """
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
@@ -77,18 +72,15 @@ def delete_untracked_labels(owner, repo, token, labels_to_keep, whitelist):
     deleted_labels = []
     existing_labels = response.json()
     for label in existing_labels:
-        label_name = label['name']
-        if label_name not in labels_to_keep and label_name not in whitelist:
+        name = label['name']
+        if name not in labels_to_keep and name not in whitelist:
             if DRY_RUN:
-                print(f"🗑️ [DRY RUN] Would delete label '{label_name}' from {owner}/{repo}")
+                deleted_labels.append(name)
             else:
-                del_url = f"{API_BASE}/repos/{owner}/{repo}/labels/{label_name}"
+                del_url = f"{API_BASE}/repos/{owner}/{repo}/labels/{name}"
                 del_response = requests.delete(del_url, headers=headers)
                 if del_response.status_code == 204:
-                    print(f"🗑️ Deleted label '{label_name}' from {owner}/{repo}")
-                    deleted_labels.append(label_name)
-                else:
-                    print(f"❌ Failed to delete '{label_name}' from {owner}/{repo}: {del_response.status_code} - {del_response.text}")
+                    deleted_labels.append(name)
     return deleted_labels
 
 # ---------------------------
@@ -96,13 +88,6 @@ def delete_untracked_labels(owner, repo, token, labels_to_keep, whitelist):
 # ---------------------------
 
 def main():
-    summary = {
-        "created": 0,
-        "updated": 0,
-        "deleted": 0,
-        "failed": 0
-    }
-
     token = GITHUB_TOKEN
     label_names = [label['name'] for label in LABELS]
 
@@ -110,27 +95,41 @@ def main():
         owner = repo_entry["owner"]
         repo = repo_entry["repo"]
 
-        print(f"\n=== 🏷️ Cleaning extra labels in {owner}/{repo} ===")
+        # Per-repo tracking
+        repo_summary = {"created": [], "updated": [], "deleted": [], "failed": []}
+
+        print(f"\n=== 🏷️ Processing {owner}/{repo} ===")
+
+        # Delete untracked labels
         deleted = delete_untracked_labels(owner, repo, token, label_names, WHITELIST_LABELS)
-        summary["deleted"] += len(deleted)
+        repo_summary["deleted"].extend(deleted)
 
-        print(f"=== 🏷️ Applying standard labels to {owner}/{repo} ===")
+        # Create/update labels
         for label in LABELS:
-            result = create_or_update_label(owner, repo, label, token)
-            if result in summary:
-                summary[result] += 1
-            else:
-                summary["failed"] += 1
+            result, name = create_or_update_label(owner, repo, label, token)
+            repo_summary[result].append(name)
 
-    print("\n✅ Label update completed!")
-    print(f"Labels created: {summary['created']}")
-    print(f"Labels updated: {summary['updated']}")
-    print(f"Labels deleted: {summary['deleted']}")
-    print(f"Failures: {summary['failed']}")
-    if DRY_RUN:
-        print("⚠️ DRY RUN mode enabled — no labels were actually deleted or created.")
-    if WHITELIST_LABELS:
-        print(f"⚠️ Whitelisted labels not deleted: {', '.join(WHITELIST_LABELS)}")
+        # Print per-repo mini-summary
+        print(f"\n📊 {owner}/{repo} summary:")
+        print(f"  ➕ Created: {len(repo_summary['created'])}")
+        print(f"  🔄 Updated: {len(repo_summary['updated'])}")
+        print(f"  🗑️ Deleted: {len(repo_summary['deleted'])}")
+        print(f"  ❌ Failures: {len(repo_summary['failed'])}")
+
+        # Detailed per-label log
+        for label in repo_summary["created"]:
+            print(f"  ➕ {label}")
+        for label in repo_summary["updated"]:
+            print(f"  🔄 {label}")
+        for label in repo_summary["deleted"]:
+            print(f"  🗑️ {label}")
+        for label in repo_summary["failed"]:
+            print(f"  ❌ {label}")
+
+        if DRY_RUN:
+            print("⚠️ DRY RUN — no labels were actually deleted or created")
+        if WHITELIST_LABELS:
+            print(f"⚠️ Whitelisted labels not deleted: {', '.join(WHITELIST_LABELS)}")
 
 if __name__ == "__main__":
     main()
