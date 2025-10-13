@@ -2,11 +2,11 @@ name: Sync Workflows
 
 on:
   # Trigger when relevant files change
-  #push:
-  #  paths:
-  #    - 'github-sync-workflows/sync_data.py'
-  #    - 'github-sync-workflows/Data/**'
-  #    - 'github-sync-workflows/sync_workflows.py'
+  push:
+    paths:
+      - 'github-sync-workflows/sync_data.py'
+      - 'github-sync-workflows/Data/**'
+      - 'github-sync-workflows/sync_workflows.py'
 
   # Manual trigger
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
       mode:
         description: 'Run mode'
         required: true
-        default: 'dry-run'
+        default: 'real'
         type: choice
         options:
           - dry-run
@@ -45,7 +45,7 @@ jobs:
         id: sync_workflows
         run: |
           # Determine mode: use workflow_dispatch input if available, otherwise default to dry-run
-          MODE="${{ github.event.inputs.mode || 'dry-run' }}"
+          MODE="${{ github.event.inputs.mode || 'real' }}"
           echo "Running Snyc Workflows in $MODE mode..."
           python github-sync-workflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
         env:

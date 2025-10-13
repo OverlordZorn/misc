@@ -87,7 +87,13 @@ def ensure_directory(owner, repo, path):
         r = requests.put(url, headers=HEADERS, json=data)
         
         if r.status_code not in (200, 201):
-            print(f"  ⚠️  Could not create {current_dir}: {r.status_code} - {r.text}")
+            try:
+                error_msg = r.json().get("message", r.text)
+            except:
+                error_msg = r.text
+            print(f"  ⚠️  Could not create {current_dir}: {r.status_code} - {error_msg}")
+            if r.status_code == 404:
+                print(f"     (Trying to PUT: {url})")
             return False
         
         print(f"  📁 Created: {current_dir}")
