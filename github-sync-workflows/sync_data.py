@@ -7,6 +7,24 @@ IGNORE_FILES = [
     # "README.md",
 ]
 
+
+BLACKLIST_FILES = [
+    ".github/.gitkeep",
+    ".github/release.yml",
+
+    ".github/workflows/sqf-validator.yml",
+    ".github/workflows/arma.yml",
+    ".github/workflows/validate.yml",
+    ".github/workflows/hemtt.yml",
+
+    "tools/stringtablediag.py",
+    "tools/sqf_validator.py",
+    "tools/config_style_checker.py",
+    "tools/update_hemtt.bat"
+]
+
+
+
 # Path mappings: local → remote
 # Keys are relative paths inside your Data/ folder.
 # Values are the target path inside the destination repo.

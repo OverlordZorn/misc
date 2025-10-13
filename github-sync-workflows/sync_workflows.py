@@ -2,13 +2,14 @@
 """
 Syncs files from the local Data directory into multiple GitHub repositories.
 Refactored for safety, clarity, and performance.
+Includes a blacklist feature: files listed in BLACKLIST_FILES are deleted from the repo if present.
 """
 
 import os
 import sys
 import base64
 import requests
-from sync_data import REPOSITORIES, IGNORE_FILES, PATH_MAP
+from sync_data import REPOSITORIES, IGNORE_FILES, PATH_MAP, BLACKLIST_FILES
 
 API_BASE = "https://api.github.com"
 
@@ -50,7 +51,6 @@ def should_ignore(repo_info, relative_path):
             return True
     return False
 
-
 def map_relative_path(relative_path):
     """Map local path (under Data/) to remote repo path via PATH_MAP."""
     for local_prefix, remote_prefix in PATH_MAP.items():
@@ -62,7 +62,6 @@ def map_relative_path(relative_path):
     print(f"  ⚠️  No mapping found for: {relative_path} (using as-is)")
     return relative_path
 
-
 def get_remote_file(owner, repo, path):
     """Fetch file metadata from GitHub (returns dict or None)."""
     url = f"{API_BASE}/repos/{owner}/{repo}/contents/{path}"
@@ -70,7 +69,6 @@ def get_remote_file(owner, repo, path):
     if r.status_code == 200:
         return r.json()
     return None
-
 
 def upload_file(owner, repo, path, content, message):
     """Upload or update a file in a target repository."""
@@ -114,6 +112,36 @@ def upload_file(owner, repo, path, content, message):
         print(f"  ❌ Failed: {path} ({r.status_code}) - {err}")
         return False
 
+def delete_file(owner, repo, path):
+    """Delete a file in the repository if it exists."""
+    if DRY_RUN:
+        print(f"  [Dry-run] Would delete: {path}")
+        return True
+
+    existing = get_remote_file(owner, repo, path)
+    if not existing or "sha" not in existing:
+        print(f"  ⏩ Skipped delete (file not found): {path}")
+        return True
+
+    data = {
+        "message": f"🗑️ Delete blacklisted file {path}",
+        "sha": existing["sha"],
+        "branch": "main",
+    }
+
+    url = f"{API_BASE}/repos/{owner}/{repo}/contents/{path}"
+    r = requests.delete(url, headers=get_headers(owner), json=data)
+
+    if r.status_code in (200, 201):
+        print(f"  ✅ Deleted: {path}")
+        return True
+    else:
+        try:
+            err = r.json().get("message", r.text)
+        except Exception:
+            err = r.text
+        print(f"  ❌ Failed to delete {path}: {r.status_code} - {err}")
+        return False
 
 # =============================================================================
 #  Main Sync Logic
@@ -127,6 +155,7 @@ def main():
 
     total_synced = 0
     total_skipped = 0
+    total_deleted = 0
     total_failed = 0
 
     for repo_info in REPOSITORIES:
@@ -138,14 +167,24 @@ def main():
             for file in files:
                 full_path = os.path.join(root, file)
                 relative_path = os.path.relpath(full_path, DATA_DIR).replace("\\", "/")
+                mapped_path = map_relative_path(relative_path)
 
+                # --- Blacklist handling ---
+                if mapped_path in BLACKLIST_FILES:
+                    ok = delete_file(owner, repo, mapped_path)
+                    if ok:
+                        total_deleted += 1
+                    else:
+                        total_failed += 1
+                    continue  # skip to next file
+
+                # --- Ignore handling ---
                 if should_ignore(repo_info, relative_path):
                     print(f"  🚫 Ignored: {relative_path}")
                     total_skipped += 1
                     continue
 
-                mapped_path = map_relative_path(relative_path)
-
+                # --- Upload file ---
                 try:
                     with open(full_path, "r", encoding="utf-8") as f:
                         content = f.read()
@@ -169,9 +208,10 @@ def main():
 
     # Summary
     print("\n📊 Summary:")
-    print(f"  ✅ Synced:  {total_synced}")
-    print(f"  🚫 Skipped: {total_skipped}")
-    print(f"  ❌ Failed:  {total_failed}")
+    print(f"  ✅ Synced:   {total_synced}")
+    print(f"  🚫 Skipped:  {total_skipped}")
+    print(f"  🗑️ Deleted:  {total_deleted}")
+    print(f"  ❌ Failed:   {total_failed}")
 
     if total_failed > 0:
         sys.exit(1)
