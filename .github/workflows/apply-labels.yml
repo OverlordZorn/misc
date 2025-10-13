@@ -1,6 +1,11 @@
 name: Label Updater
 
 on:
+  push:
+    paths:
+      - 'github-label-updater/setup_labels.py'
+      - 'github-label-updater/labels_data.py'
+      - 'github-label-updater/repos_data.py'
   workflow_dispatch:
     inputs:
       mode:
