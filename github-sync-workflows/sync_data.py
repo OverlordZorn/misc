@@ -3,8 +3,8 @@
 
 # Global ignore list (applies to all repos)
 IGNORE_FILES = [
-    ".gitkeep",
-    "README.md",
+    # ".gitkeep",
+    # "README.md",
 ]
 
 # Path mappings: local → remote
@@ -20,7 +20,7 @@ REPOSITORIES = [
     {
         "owner": "overlordZorn", "repo": "misc",
         "ignore": [
-            ".github/workflows/custom-build.yml",
+        #    ".github/workflows/custom-build.yml",
         ],
     },
     {
