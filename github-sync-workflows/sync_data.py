@@ -19,7 +19,13 @@ PATH_MAP = {
 # Repositories to sync and their per-repo ignore rules
 REPOSITORIES = [
     {
-        "owner": "overlordZorn", "repo": "misc",
+        "owner": "OverlordZorn", "repo": "ZRN-Mod-Template",
+        "ignore": [
+        #    ".github/workflows/custom-build.yml",
+        ],
+    },
+    {
+        "owner": "OverlordZorn", "repo": "STORM-Framework",
         "ignore": [
         #    ".github/workflows/custom-build.yml",
         ],
@@ -30,6 +36,22 @@ REPOSITORIES = [
     },
     {
         "owner": "CVO-Org", "repo": "CVO-OGG",
+        "ignore": [],
+    },
+    {
+        "owner": "CVO-Org", "repo": "ron",
+        "ignore": [],
+    },
+    {
+        "owner": "CVO-Org", "repo": "ZEIC",
+        "ignore": [],
+    },
+    {
+        "owner": "CVO-Org", "repo": "CVO-CBA-Settings",
+        "ignore": [],
+    },
+    {
+        "owner": "CVO-Org", "repo": "CVO-Compatibilities",
         "ignore": [],
     },
 ]
