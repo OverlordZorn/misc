@@ -1,11 +1,20 @@
 name: Sync Labels
 
 on:
-  workflow_dispatch:    # allows manual triggering
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode: dry-run or real"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - real
   push:
     paths:
-      - "labels_data.py"
-      - "repos_data.py"
+      - "github-label-updater/labels_data.py"
+      - "github-label-updater/repos_data.py"
       - ".github/workflows/sync-labels.yml"
 
 jobs:
@@ -26,8 +35,15 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run label updater (dry-run)
+      - name: Run label updater
         run: |
-          echo "Running label updater in DRY-RUN mode..."
-          sed -i 's/DRY_RUN = False/DRY_RUN = True/' setup_labels.py
-          python setup_labels.py
+          echo "Running label updater in ${{ github.event.inputs.mode }} mode..."
+          
+          # Enable dry-run if mode is dry-run
+          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
+            sed -i 's/DRY_RUN = False/DRY_RUN = True/' github-label-updater/setup_labels.py
+          else
+            sed -i 's/DRY_RUN = True/DRY_RUN = False/' github-label-updater/setup_labels.py
+          fi
+
+          python github-label-updater/setup_labels.py
