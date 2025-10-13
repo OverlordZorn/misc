@@ -97,14 +97,18 @@ def delete_unlisted_labels(owner, repo):
 def main():
     run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    for owner, repos in REPOSITORIES.items():
-        for repo in repos:
-            print(f"\n=== 🏷️ Applying labels to {owner}/{repo} ===")
-            if MODE in ("real", "dry-run"):
-                for label in LABELS:
-                    create_or_update_label(owner, repo, label)
-            if MODE in ("real", "purge-only", "dry-run"):
-                delete_unlisted_labels(owner, repo)
+    for entry in REPOSITORIES:
+        owner = entry["owner"]
+        repo = entry["repo"]
+
+        print(f"\n=== 🏷️ Applying labels to {owner}/{repo} ===")
+
+        if MODE in ("real", "dry-run"):
+            for label in LABELS:
+                create_or_update_label(owner, repo, label)
+
+        if MODE in ("real", "purge-only", "dry-run"):
+            delete_unlisted_labels(owner, repo)
 
     # Write protocol
     protocol_file = os.path.join(os.path.dirname(__file__), "protocol.md")
