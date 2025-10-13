@@ -68,12 +68,13 @@ def ensure_directory(owner, repo, path):
         current_dir = "/".join(parts[:i+1])
         gitkeep_path = f"{current_dir}/.gitkeep"
         
-        # Check if this level already exists
-        if get_remote_file(owner, repo, gitkeep_path):
-            continue
-        
         if DRY_RUN:
             print(f"  [Dry-run] Would create: {current_dir}")
+            continue
+        
+        # Check if this level already exists
+        existing = get_remote_file(owner, repo, gitkeep_path)
+        if existing:
             continue
         
         data = {
@@ -86,7 +87,7 @@ def ensure_directory(owner, repo, path):
         r = requests.put(url, headers=HEADERS, json=data)
         
         if r.status_code not in (200, 201):
-            print(f"  ⚠️  Could not create {current_dir}: {r.status_code}")
+            print(f"  ⚠️  Could not create {current_dir}: {r.status_code} - {r.text}")
             return False
         
         print(f"  📁 Created: {current_dir}")
