@@ -36,6 +36,8 @@ jobs:
           MODE=${{ github.event.inputs.mode }}
           echo "Running Label Updater in $MODE mode..."
           python github-label-updater/setup_labels.py $MODE $GITHUB_TOKEN
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # <-- Make sure this is set
 
       - name: Commit protocol.md
         if: ${{ github.event.inputs.mode != 'dry-run' }}
