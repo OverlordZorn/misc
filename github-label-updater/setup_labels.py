@@ -8,6 +8,7 @@ Supports dry-run, real, and purge-only modes.
 import os
 import sys
 import requests
+from datetime import datetime
 from labels_data import LABELS, WHITELIST_LABELS
 from repos_data import REPOSITORIES
 
@@ -15,12 +16,13 @@ from repos_data import REPOSITORIES
 # CONFIGURATION
 # ---------------------------
 
-# Token is passed via GitHub Action env var or CLI argument
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[2] if len(sys.argv) > 2 else None)
-MODE = sys.argv[1] if len(sys.argv) > 1 else "dry-run"  # dry-run, real, purge-only
+# Mode: dry-run, real, purge-only
+MODE = sys.argv[1] if len(sys.argv) > 1 else "dry-run"
 
+# Token must come from environment variable (GitHub Actions)
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 if not GITHUB_TOKEN:
-    sys.exit("❌ ERROR: Missing GitHub token. Pass it via env var GITHUB_TOKEN or as CLI arg.")
+    sys.exit("❌ ERROR: Missing GitHub token. Set GITHUB_TOKEN as an environment variable.")
 
 API_BASE = "https://api.github.com"
 HEADERS = {
@@ -76,9 +78,10 @@ def delete_unlisted_labels(owner, repo):
     for label_name in existing_labels:
         if label_name not in allowed_labels:
             if MODE == "dry-run":
+                # ✅ Log deletion in dry-run mode
                 changes_log.append(f"(Dry-run) Would delete label '{label_name}' from {owner}/{repo}")
                 continue
-            if MODE == "purge-only" or MODE == "real":
+            if MODE in ("real", "purge-only"):
                 print(f"🗑️ Deleting label '{label_name}' from {owner}/{repo}")
                 r = requests.delete(f"{API_BASE}/repos/{owner}/{repo}/labels/{label_name}", headers=HEADERS)
                 if r.status_code == 204:
@@ -92,6 +95,8 @@ def delete_unlisted_labels(owner, repo):
 # ---------------------------
 
 def main():
+    run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     for owner, repos in REPOSITORIES.items():
         for repo in repos:
             print(f"\n=== 🏷️ Applying labels to {owner}/{repo} ===")
@@ -105,10 +110,12 @@ def main():
     protocol_file = os.path.join(os.path.dirname(__file__), "protocol.md")
     with open(protocol_file, "w", encoding="utf-8") as f:
         f.write("# Label Updater Protocol\n\n")
-        f.write(f"**Mode:** {MODE}\n\n")
+        f.write(f"**Mode:** {MODE}\n")
+        f.write(f"**Run Timestamp:** {run_timestamp}\n\n")
         f.write("## Changes Applied\n")
         for line in changes_log:
             f.write(f"- {line}\n")
+
     print(f"\n📄 Protocol written to {protocol_file}")
 
 
