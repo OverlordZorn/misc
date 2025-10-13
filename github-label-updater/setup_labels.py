@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-Setup script to create or update GitHub labels across multiple repositories.
-- Works with both personal and organization repos listed in repos_data.py
-- Keeps curated labels from labels_data.py
-- Deletes labels not in the curated set unless whitelisted
-- Supports optional dry-run mode
-- Logs which labels were created, updated, deleted, or skipped
-- Provides per-repo mini-summary for GitHub Actions
+Setup script to create, update, or purge GitHub labels.
+Supports:
+- dry-run
+- real (apply curated labels)
+- purge-only (delete all non-whitelisted labels, do not create anything)
 """
 
 import os
@@ -19,62 +17,47 @@ from repos_data import REPOSITORIES
 # CONFIGURATION
 # ---------------------------
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[1] if len(sys.argv) > 1 else None)
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[2] if len(sys.argv) > 2 else None)
 if not GITHUB_TOKEN:
     sys.exit("❌ ERROR: Missing GitHub token. Pass it via env var GITHUB_TOKEN or as CLI arg.")
 
-DRY_RUN = False
-
 API_BASE = "https://api.github.com"
+HEADERS = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
 
 # ---------------------------
 # HELPER FUNCTIONS
 # ---------------------------
 
-def create_or_update_label(owner, repo, label, token):
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+def create_or_update_label(owner, repo, label):
+    """Creates or updates a single label in a GitHub repository."""
     url = f"{API_BASE}/repos/{owner}/{repo}/labels/{label['name']}"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=HEADERS)
 
     if response.status_code == 200:
-        r = requests.patch(url, headers=headers, json=label)
-        if r.status_code in (200, 201):
-            return "updated", label['name']
-        else:
-            return "failed", label['name']
+        r = requests.patch(url, headers=HEADERS, json=label)
+        return "updated" if r.status_code in (200, 201) else "failed", label['name']
     else:
-        r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=headers, json=label)
-        if r.status_code in (200, 201):
-            return "created", label['name']
-        else:
-            return "failed", label['name']
+        r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=HEADERS, json=label)
+        return "created" if r.status_code in (200, 201) else "failed", label['name']
 
-def delete_untracked_labels(owner, repo, token, labels_to_keep, whitelist):
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+def delete_untracked_labels(owner, repo, labels_to_keep, whitelist):
+    """Deletes all labels not in labels_to_keep or whitelist."""
     url = f"{API_BASE}/repos/{owner}/{repo}/labels"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=HEADERS)
     if response.status_code != 200:
         print(f"❌ Failed to list labels for {owner}/{repo}: {response.status_code} - {response.text}")
         return []
 
     deleted_labels = []
-    existing_labels = response.json()
-    for label in existing_labels:
+    for label in response.json():
         name = label['name']
         if name not in labels_to_keep and name not in whitelist:
-            if DRY_RUN:
+            r = requests.delete(f"{API_BASE}/repos/{owner}/{repo}/labels/{name}", headers=HEADERS)
+            if r.status_code == 204:
                 deleted_labels.append(name)
-            else:
-                del_url = f"{API_BASE}/repos/{owner}/{repo}/labels/{name}"
-                del_response = requests.delete(del_url, headers=headers)
-                if del_response.status_code == 204:
-                    deleted_labels.append(name)
     return deleted_labels
 
 # ---------------------------
@@ -82,7 +65,8 @@ def delete_untracked_labels(owner, repo, token, labels_to_keep, whitelist):
 # ---------------------------
 
 def main():
-    token = GITHUB_TOKEN
+    # Determine mode
+    mode = sys.argv[1] if len(sys.argv) > 1 else "real"
     label_names = [label['name'] for label in LABELS]
 
     for repo_entry in REPOSITORIES:
@@ -94,16 +78,21 @@ def main():
 
         print(f"\n=== 🏷️ Processing {owner}/{repo} ===")
 
-        # Delete untracked labels
-        deleted = delete_untracked_labels(owner, repo, token, label_names, WHITELIST_LABELS)
-        repo_summary["deleted"].extend(deleted)
+        if mode == "purge-only":
+            deleted = delete_untracked_labels(owner, repo, [], WHITELIST_LABELS)
+            repo_summary["deleted"].extend(deleted)
+            print(f"⚠️ Purge-only mode: No labels created or updated for {owner}/{repo}")
+        else:
+            # Delete untracked labels (only in real or dry-run)
+            deleted = delete_untracked_labels(owner, repo, label_names, WHITELIST_LABELS)
+            repo_summary["deleted"].extend(deleted)
 
-        # Create/update labels
-        for label in LABELS:
-            result, name = create_or_update_label(owner, repo, label, token)
-            repo_summary[result].append(name)
+            # Create/update labels
+            for label in LABELS:
+                result, name = create_or_update_label(owner, repo, label)
+                repo_summary[result].append(name)
 
-        # Print per-repo mini-summary
+        # Print per-repo summary
         print(f"\n📊 {owner}/{repo} summary:")
         print(f"  ➕ Created: {len(repo_summary['created'])}")
         print(f"  🔄 Updated: {len(repo_summary['updated'])}")
@@ -119,11 +108,6 @@ def main():
             print(f"  🗑️ {label}")
         for label in repo_summary["failed"]:
             print(f"  ❌ {label}")
-
-        if DRY_RUN:
-            print("⚠️ DRY RUN — no labels were actually deleted or created")
-        if WHITELIST_LABELS:
-            print(f"⚠️ Whitelisted labels not deleted: {', '.join(WHITELIST_LABELS)}")
 
 if __name__ == "__main__":
     main()
