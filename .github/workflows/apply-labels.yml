@@ -1,0 +1,33 @@
+name: Sync Labels
+
+on:
+  workflow_dispatch:    # allows manual triggering
+  push:
+    paths:
+      - "labels_data.py"
+      - "repos_data.py"
+      - ".github/workflows/sync-labels.yml"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run label updater (dry-run)
+        run: |
+          echo "Running label updater in DRY-RUN mode..."
+          sed -i 's/DRY_RUN = False/DRY_RUN = True/' setup_labels.py
+          python setup_labels.py
