@@ -4,18 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Run mode: dry-run or real"
+        description: "Run mode"
         required: true
         default: "dry-run"
         type: choice
         options:
           - dry-run
           - real
-  push:
-    paths:
-      - "github-label-updater/labels_data.py"
-      - "github-label-updater/repos_data.py"
-      - ".github/workflows/sync-labels.yml"
+          - purge-only
 
 jobs:
   sync:
@@ -35,22 +31,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run label updater with per-repo collapsible groups
+      - name: Run label updater
         run: |
-          echo "Running label updater in ${{ github.event.inputs.mode }} mode..."
-
-          # Enable dry-run if selected
-          if [ "${{ github.event.inputs.mode }}" = "dry-run" ]; then
-            sed -i 's/DRY_RUN = False/DRY_RUN = True/' github-label-updater/setup_labels.py
-          else
-            sed -i 's/DRY_RUN = True/DRY_RUN = False/' github-label-updater/setup_labels.py
-          fi
-
-          # Run the Python script and capture output
-          OUTPUT=$(python github-label-updater/setup_labels.py)
-
-          # Split output per repo using "📊" summary line as marker
-          echo "$OUTPUT" | awk '
-          /📊/ { if (repo) print "::endgroup::"; repo=$0; print "::group::" repo; next }
-          { print }
-          END { print "::endgroup::" }'
+          MODE=${{ github.event.inputs.mode }}
+          echo "Running label updater in $MODE mode..."
+          python github-label-updater/setup_labels.py $MODE $GITHUB_TOKEN
