@@ -57,33 +57,40 @@ def get_remote_file(owner, repo, path):
 
 
 def ensure_directory(owner, repo, path):
-    """Create parent directory structure by adding a .gitkeep file if needed."""
+    """Create parent directory structure recursively by adding .gitkeep files."""
     parent_dir = "/".join(path.split("/")[:-1])
     if not parent_dir:
         return True
     
-    gitkeep_path = f"{parent_dir}/.gitkeep"
-    if get_remote_file(owner, repo, gitkeep_path):
-        return True
+    # Split path into parts and create each level
+    parts = parent_dir.split("/")
+    for i in range(len(parts)):
+        current_dir = "/".join(parts[:i+1])
+        gitkeep_path = f"{current_dir}/.gitkeep"
+        
+        # Check if this level already exists
+        if get_remote_file(owner, repo, gitkeep_path):
+            continue
+        
+        if DRY_RUN:
+            print(f"  [Dry-run] Would create: {current_dir}")
+            continue
+        
+        data = {
+            "message": f"Create directory: {current_dir}",
+            "content": base64.b64encode(b"").decode(),
+            "branch": "main",
+        }
+        
+        url = f"{API_BASE}/repos/{owner}/{repo}/contents/{gitkeep_path}"
+        r = requests.put(url, headers=HEADERS, json=data)
+        
+        if r.status_code not in (200, 201):
+            print(f"  ⚠️  Could not create {current_dir}: {r.status_code}")
+            return False
+        
+        print(f"  📁 Created: {current_dir}")
     
-    if DRY_RUN:
-        print(f"  [Dry-run] Would create directory: {parent_dir}")
-        return True
-    
-    data = {
-        "message": f"Create directory: {parent_dir}",
-        "content": base64.b64encode(b"").decode(),
-        "branch": "main",
-    }
-    
-    url = f"{API_BASE}/repos/{owner}/{repo}/contents/{gitkeep_path}"
-    r = requests.put(url, headers=HEADERS, json=data)
-    
-    if r.status_code not in (200, 201):
-        print(f"  ⚠️  Could not create directory {parent_dir}: {r.status_code}")
-        return False
-    
-    print(f"  📁 Created directory: {parent_dir}")
     return True
 
 
