@@ -3,14 +3,14 @@ name: Label Updater
 on:
   push:
     paths:
-      - 'github-label-updater/setup_labels.py'
-      - 'github-label-updater/labels_data.py'
-      - 'github-label-updater/repos_data.py'
+      - 'github-sync-labels/setup_labels.py'
+      - 'github-sync-labels/labels_data.py'
+      - 'github-sync-labels/repos_data.py'
 
   workflow_dispatch:
     inputs:
       mode:
-        description: "Mode: dry-run, real, purge-only"
+        description: "Run mode"
         required: true
         default: dry-run
         type: choice
@@ -38,22 +38,23 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run Label Updater
+      - name: Run Sync Labels
+        id: sync_labels
         run: |
           MODE=${{ github.event.inputs.mode || 'dry-run' }}
-          echo "Running Label Updater in $MODE mode..."
-          python github-label-updater/setup_labels.py $MODE
+          echo "Running Snyc Labels in $MODE mode..."
+          python github-sync-labels/setup_labels.py $MODE
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # <- used by the Python script
 
       - name: Commit protocol.md
         if: ${{ github.event.inputs.mode != 'dry-run' }}
         run: |
-          cd github-label-updater
+          cd github-sync-labels
           git config user.name "OverlordZorn"
           git config user.email "your-email@example.com"
           git add protocol.md
-          git diff-index --quiet HEAD || git commit -m "Update label updater protocol"
+          git diff-index --quiet HEAD || git commit -m "Update sync label protocol"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

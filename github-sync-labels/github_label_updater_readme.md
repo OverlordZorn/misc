@@ -8,7 +8,7 @@ This repository contains a Python-based GitHub label updater for managing multip
 
 ```
 .github/workflows/sync-labels.yml     # GitHub Actions workflow
-/github-label-updater/
+/github-sync-labels/
     setup_labels.py                   # Python script
     labels_data.py                    # Your curated labels database
     repos_data.py                     # List of repos to update

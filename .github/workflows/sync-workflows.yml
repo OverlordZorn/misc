@@ -4,16 +4,16 @@ on:
   # Trigger when relevant files change
   push:
     paths:
-      - 'SyncGithubWorkflows/sync_data.py'
-      - 'SyncGithubWorkflows/Data/**'
-      - 'SyncGithubWorkflows/sync_workflows.py'
+      - 'github-sync-workflows/sync_data.py'
+      - 'github-sync-workflows/Data/**'
+      - 'github-sync-workflows/sync_workflows.py'
 
   # Manual trigger
   workflow_dispatch:
     inputs:
       mode:
         description: 'Run mode'
-        required: false
+        required: true
         default: 'dry-run'
         type: choice
         options:
@@ -25,13 +25,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}      # <-- ensures push access
+          persist-credentials: true
 
       # Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -40,12 +42,12 @@ jobs:
         run: pip install requests
 
       - name: Run Sync Workflows
-        id: sync
+        id: sync_workflows
         run: |
           # Determine mode: use workflow_dispatch input if available, otherwise default to dry-run
           MODE="${{ github.event.inputs.mode || 'dry-run' }}"
-          echo "Running sync_workflows.py in mode: $MODE"
-          python SyncGithubWorkflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
+          echo "Running Snyc Workflows in $MODE mode..."
+          python github-sync-workflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
@@ -55,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add SyncGithubWorkflows/protocol_*.md
+          git add github-sync-workflows/protocol_*.md
           git diff --cached --quiet || git commit -m "📝 Add protocol logs from workflow sync"
           git push origin HEAD:main
         env:
