@@ -1,4 +1,4 @@
-name: Sync GitHub Workflows
+name: Sync Workflows
 
 on:
   # Trigger when relevant files change
