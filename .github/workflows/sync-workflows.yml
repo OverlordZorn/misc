@@ -50,15 +50,3 @@ jobs:
           python github-sync-workflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-      # Commit the generated protocol files back to this repository
-      - name: Commit protocol files
-        if: ${{ github.event.inputs.mode != 'dry-run' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add github-sync-workflows/protocol_*.md
-          git diff --cached --quiet || git commit -m "📝 Add protocol logs from workflow sync"
-          git push origin HEAD:main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
