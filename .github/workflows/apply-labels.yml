@@ -33,6 +33,13 @@ jobs:
 
       - name: Run label updater
         run: |
+          RED='\033[0;31m'
+          NC='\033[0m'
           MODE=${{ github.event.inputs.mode }}
-          echo "Running label updater in $MODE mode..."
+          if [ "$MODE" = "purge-only" ]; then
+            echo -e "${RED}🚨🚨🚨 PURGE-ONLY MODE ACTIVE 🚨🚨🚨${NC}"
+            echo -e "${RED}All non-whitelisted labels will be deleted. No labels will be created or updated.${NC}"
+          else
+            echo "Running label updater in $MODE mode..."
+          fi
           python github-label-updater/setup_labels.py $MODE $GITHUB_TOKEN
