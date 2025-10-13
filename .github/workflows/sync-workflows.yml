@@ -1,0 +1,62 @@
+name: Sync GitHub Workflows
+
+on:
+  # Trigger when relevant files change
+  push:
+    paths:
+      - 'SyncGithubWorkflows/sync_data.py'
+      - 'SyncGithubWorkflows/Data/**'
+      - 'SyncGithubWorkflows/sync_workflows.py'
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'dry-run'
+        type: choice
+        options:
+          - dry-run
+          - real
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Sync Workflows
+        id: sync
+        run: |
+          # Determine mode: use workflow_dispatch input if available, otherwise default to dry-run
+          MODE="${{ github.event.inputs.mode || 'dry-run' }}"
+          echo "Running sync_workflows.py in mode: $MODE"
+          python SyncGithubWorkflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      # Commit the generated protocol files back to this repository
+      - name: Commit protocol files
+        if: ${{ github.event.inputs.mode != 'dry-run' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add SyncGithubWorkflows/protocol_*.md
+          git diff --cached --quiet || git commit -m "📝 Add protocol logs from workflow sync"
+          git push origin HEAD:main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
