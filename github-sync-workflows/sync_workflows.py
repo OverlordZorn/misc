@@ -11,18 +11,14 @@ from sync_data import REPOSITORIES, IGNORE_FILES, PATH_MAP
 
 API_BASE = "https://api.github.com"
 
-# Token setup - support multiple PATs for different orgs
+# Token setup - support multiple PATs for different orgs/users
 def get_token_for_repo(owner):
     """Get the appropriate token for a repo owner."""
-    # Try owner-specific token first (e.g., PAT_CVO_ORG)
-    org_token = os.getenv(f"PAT_{owner.upper().replace('-', '_')}")
+    # Try owner-specific token first (e.g., PAT_OVERLORDZORN, PAT_CVO_ORG)
+    env_key = f"PAT_{owner.upper().replace('-', '_')}"
+    org_token = os.getenv(env_key)
     if org_token:
         return org_token
-    
-    # Fall back to default PAT
-    default_token = os.getenv("PAT") or (sys.argv[2] if len(sys.argv) > 2 else None)
-    if default_token:
-        return default_token
     
     return None
 
@@ -30,7 +26,8 @@ def get_headers(owner):
     """Get authorization headers for a repo owner."""
     token = get_token_for_repo(owner)
     if not token:
-        sys.exit(f"❌ ERROR: Missing GitHub token for {owner}. Set PAT or PAT_{owner.upper().replace('-', '_')} as an environment variable.")
+        env_key = f"PAT_{owner.upper().replace('-', '_')}"
+        sys.exit(f"❌ ERROR: Missing token for {owner}. Set {env_key} as an environment variable.")
     
     return {
         "Authorization": f"token {token}",
