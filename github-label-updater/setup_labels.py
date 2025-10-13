@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
-Setup script to create, update, or purge GitHub labels.
-Supports:
-- dry-run
-- real (apply curated labels)
-- purge-only (delete all non-whitelisted labels, do not create anything)
+Setup script to create, update, or delete GitHub labels.
+Writes a protocol file next to the script to log all changes.
+Supports dry-run, real, and purge-only modes.
 """
 
 import os
@@ -17,7 +15,10 @@ from repos_data import REPOSITORIES
 # CONFIGURATION
 # ---------------------------
 
+# Token is passed via GitHub Action env var or CLI argument
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or (sys.argv[2] if len(sys.argv) > 2 else None)
+MODE = sys.argv[1] if len(sys.argv) > 1 else "dry-run"  # dry-run, real, purge-only
+
 if not GITHUB_TOKEN:
     sys.exit("❌ ERROR: Missing GitHub token. Pass it via env var GITHUB_TOKEN or as CLI arg.")
 
@@ -27,9 +28,7 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json"
 }
 
-# Determine mode
-mode = sys.argv[1] if len(sys.argv) > 1 else "real"
-DRY_RUN = mode == "dry-run"
+changes_log = []
 
 # ---------------------------
 # HELPER FUNCTIONS
@@ -40,87 +39,78 @@ def create_or_update_label(owner, repo, label):
     url = f"{API_BASE}/repos/{owner}/{repo}/labels/{label['name']}"
     response = requests.get(url, headers=HEADERS)
 
-    if response.status_code == 200:
-        if DRY_RUN:
-            print(f"🔄 [DRY-RUN] Would update label '{label['name']}' in {owner}/{repo}")
-            return "updated", label['name']
-        r = requests.patch(url, headers=HEADERS, json=label)
-        return "updated" if r.status_code in (200, 201) else "failed", label['name']
-    else:
-        if DRY_RUN:
-            print(f"➕ [DRY-RUN] Would create label '{label['name']}' in {owner}/{repo}")
-            return "created", label['name']
-        r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=HEADERS, json=label)
-        return "created" if r.status_code in (200, 201) else "failed", label['name']
+    if MODE == "dry-run":
+        if response.status_code == 200:
+            changes_log.append(f"(Dry-run) Would update label '{label['name']}' in {owner}/{repo}")
+        else:
+            changes_log.append(f"(Dry-run) Would create label '{label['name']}' in {owner}/{repo}")
+        return
 
-def delete_untracked_labels(owner, repo, labels_to_keep, whitelist):
-    """Deletes all labels not in labels_to_keep or whitelist."""
+    if response.status_code == 200:
+        print(f"🔄 Updating label '{label['name']}' in {owner}/{repo}")
+        r = requests.patch(url, headers=HEADERS, json=label)
+        if r.status_code in (200, 201):
+            changes_log.append(f"Updated label '{label['name']}' in {owner}/{repo}")
+        else:
+            changes_log.append(f"❌ Failed to update '{label['name']}' in {owner}/{repo}: {r.text}")
+    else:
+        print(f"➕ Creating label '{label['name']}' in {owner}/{repo}")
+        r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=HEADERS, json=label)
+        if r.status_code in (200, 201):
+            changes_log.append(f"Created label '{label['name']}' in {owner}/{repo}")
+        else:
+            changes_log.append(f"❌ Failed to create '{label['name']}' in {owner}/{repo}: {r.text}")
+
+
+def delete_unlisted_labels(owner, repo):
+    """Deletes labels that are not in LABELS or WHITELIST_LABELS."""
     url = f"{API_BASE}/repos/{owner}/{repo}/labels"
     response = requests.get(url, headers=HEADERS)
     if response.status_code != 200:
-        print(f"❌ Failed to list labels for {owner}/{repo}: {response.status_code} - {response.text}")
-        return []
+        changes_log.append(f"❌ Failed to fetch labels for {owner}/{repo}")
+        return
 
-    deleted_labels = []
-    for label in response.json():
-        name = label['name']
-        if name not in labels_to_keep and name not in whitelist:
-            if DRY_RUN:
-                print(f"🗑️ [DRY-RUN] Would delete label: {name}")
-                deleted_labels.append(name)
+    existing_labels = [l['name'] for l in response.json()]
+    allowed_labels = [l['name'] for l in LABELS] + WHITELIST_LABELS
+
+    for label_name in existing_labels:
+        if label_name not in allowed_labels:
+            if MODE == "dry-run":
+                changes_log.append(f"(Dry-run) Would delete label '{label_name}' from {owner}/{repo}")
                 continue
-            r = requests.delete(f"{API_BASE}/repos/{owner}/{repo}/labels/{name}", headers=HEADERS)
-            if r.status_code == 204:
-                deleted_labels.append(name)
-    return deleted_labels
+            if MODE == "purge-only" or MODE == "real":
+                print(f"🗑️ Deleting label '{label_name}' from {owner}/{repo}")
+                r = requests.delete(f"{API_BASE}/repos/{owner}/{repo}/labels/{label_name}", headers=HEADERS)
+                if r.status_code == 204:
+                    changes_log.append(f"Deleted label '{label_name}' from {owner}/{repo}")
+                else:
+                    changes_log.append(f"❌ Failed to delete '{label_name}' in {owner}/{repo}: {r.text}")
+
 
 # ---------------------------
-# MAIN SCRIPT
+# MAIN
 # ---------------------------
 
 def main():
-    label_names = [label['name'] for label in LABELS]
+    for owner, repos in REPOSITORIES.items():
+        for repo in repos:
+            print(f"\n=== 🏷️ Applying labels to {owner}/{repo} ===")
+            if MODE in ("real", "dry-run"):
+                for label in LABELS:
+                    create_or_update_label(owner, repo, label)
+            if MODE in ("real", "purge-only", "dry-run"):
+                delete_unlisted_labels(owner, repo)
 
-    for repo_entry in REPOSITORIES:
-        owner = repo_entry["owner"]
-        repo = repo_entry["repo"]
+    # Write protocol
+    protocol_file = os.path.join(os.path.dirname(__file__), "protocol.md")
+    with open(protocol_file, "w", encoding="utf-8") as f:
+        f.write("# Label Updater Protocol\n\n")
+        f.write(f"**Mode:** {MODE}\n\n")
+        f.write("## Changes Applied\n")
+        for line in changes_log:
+            f.write(f"- {line}\n")
+    print(f"\n📄 Protocol written to {protocol_file}")
 
-        # Per-repo tracking
-        repo_summary = {"created": [], "updated": [], "deleted": [], "failed": []}
-
-        print(f"\n=== 🏷️ Processing {owner}/{repo} ===")
-
-        if mode == "purge-only":
-            # Only delete labels, skip creation/update
-            deleted = delete_untracked_labels(owner, repo, [], WHITELIST_LABELS)
-            repo_summary["deleted"].extend(deleted)
-            print(f"⚠️ Purge-only mode: No labels created or updated for {owner}/{repo}")
-        else:
-            # Delete untracked labels
-            deleted = delete_untracked_labels(owner, repo, label_names, WHITELIST_LABELS)
-            repo_summary["deleted"].extend(deleted)
-
-            # Create/update labels
-            for label in LABELS:
-                result, name = create_or_update_label(owner, repo, label)
-                repo_summary[result].append(name)
-
-        # Print per-repo summary
-        print(f"\n📊 {owner}/{repo} summary:")
-        print(f"  ➕ Created: {len(repo_summary['created'])}")
-        print(f"  🔄 Updated: {len(repo_summary['updated'])}")
-        print(f"  🗑️ Deleted: {len(repo_summary['deleted'])}")
-        print(f"  ❌ Failures: {len(repo_summary['failed'])}")
-
-        # Detailed per-label log
-        for label in repo_summary["created"]:
-            print(f"  ➕ {label}")
-        for label in repo_summary["updated"]:
-            print(f"  🔄 {label}")
-        for label in repo_summary["deleted"]:
-            print(f"  🗑️ {label}")
-        for label in repo_summary["failed"]:
-            print(f"  ❌ {label}")
 
 if __name__ == "__main__":
     main()
