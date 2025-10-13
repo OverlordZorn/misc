@@ -18,15 +18,17 @@ PATH_MAP = {
 # Repositories to sync and their per-repo ignore rules
 REPOSITORIES = [
     {
-        "owner": "overlordZorn",
-        "repo": "misc",
+        "owner": "overlordZorn", "repo": "misc",
         "ignore": [
             ".github/workflows/custom-build.yml",
         ],
     },
     {
-        "owner": "CVO-Org",
-        "repo": "CVO-Auxiliary",
+        "owner": "CVO-Org", "repo": "CVO-Auxiliary",
+        "ignore": [],
+    },
+    {
+        "owner": "CVO-Org", "repo": "CVO-OGG",
         "ignore": [],
     },
 ]

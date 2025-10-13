@@ -9,4 +9,5 @@ REPOSITORIES = [
 
     # Organization repositories (organization name as owner)
     {"owner": "CVO-Org", "repo": "CVO-Auxiliary"},
+    {"owner": "CVO-Org", "repo": "CVO-OGG"},
 ]
