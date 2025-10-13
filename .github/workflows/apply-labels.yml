@@ -27,6 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GH_PAT }}      # <-- ensures push access
           persist-credentials: true
 
       - name: Set up Python
@@ -43,7 +44,7 @@ jobs:
           echo "Running Label Updater in $MODE mode..."
           python github-label-updater/setup_labels.py $MODE
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}   # <- Use PAT for push permissions
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # <- used by the Python script
 
       - name: Commit protocol.md
         if: ${{ github.event.inputs.mode != 'dry-run' }}
