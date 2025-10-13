@@ -2,11 +2,11 @@ name: Sync Workflows
 
 on:
   # Trigger when relevant files change
-  push:
-    paths:
-      - 'github-sync-workflows/sync_data.py'
-      - 'github-sync-workflows/Data/**'
-      - 'github-sync-workflows/sync_workflows.py'
+  #push:
+  #  paths:
+  #    - 'github-sync-workflows/sync_data.py'
+  #    - 'github-sync-workflows/Data/**'
+  #    - 'github-sync-workflows/sync_workflows.py'
 
   # Manual trigger
   workflow_dispatch:
