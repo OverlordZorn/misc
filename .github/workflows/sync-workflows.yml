@@ -49,4 +49,5 @@ jobs:
           echo "Running Snyc Workflows in $MODE mode..."
           python github-sync-workflows/sync_workflows.py "$MODE" "${{ secrets.GH_PAT }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+            PAT_OVERLORDZON: ${{ secrets.PAT_OVERLORDZON }}
+            PAT_CVO_ORG: ${{ secrets.PAT_CVO_ORG }}
