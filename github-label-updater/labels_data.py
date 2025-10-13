@@ -5,6 +5,7 @@ This file acts as the "label database" imported by setup_labels.py
 """
 
 LABELS = [
+    """
     # --- PR Labels ---
     {"name": "pr/feature", "color": "2ecc71", "description": "New gameplay features, mechanics, or assets"},
     {"name": "pr/improvement", "color": "27ae60", "description": "Enhancements to existing functionality"},
@@ -35,4 +36,10 @@ LABELS = [
     {"name": "meta/maintenance", "color": "7f8c8d", "description": "Repo maintenance or cleanup"},
     {"name": "meta/policy", "color": "16a085", "description": "Contribution guidelines or licensing"},
     {"name": "meta/discussion", "color": "95a5a6", "description": "General discussion or planning"},
+    """
+]
+
+# Whitelisted labels that should never be deleted
+WHITELIST_LABELS = [
+    "Legacy"
 ]
