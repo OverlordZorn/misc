@@ -1,4 +1,4 @@
-name: Label Updater
+name: Sync Labels
 
 on:
   push:
