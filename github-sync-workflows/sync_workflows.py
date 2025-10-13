@@ -56,11 +56,46 @@ def get_remote_file(owner, repo, path):
     return r.json() if r.status_code == 200 else None
 
 
+def ensure_directory(owner, repo, path):
+    """Create parent directory structure by adding a .gitkeep file if needed."""
+    parent_dir = "/".join(path.split("/")[:-1])
+    if not parent_dir:
+        return True
+    
+    gitkeep_path = f"{parent_dir}/.gitkeep"
+    if get_remote_file(owner, repo, gitkeep_path):
+        return True
+    
+    if DRY_RUN:
+        print(f"  [Dry-run] Would create directory: {parent_dir}")
+        return True
+    
+    data = {
+        "message": f"Create directory: {parent_dir}",
+        "content": base64.b64encode(b"").decode(),
+        "branch": "main",
+    }
+    
+    url = f"{API_BASE}/repos/{owner}/{repo}/contents/{gitkeep_path}"
+    r = requests.put(url, headers=HEADERS, json=data)
+    
+    if r.status_code not in (200, 201):
+        print(f"  ⚠️  Could not create directory {parent_dir}: {r.status_code}")
+        return False
+    
+    print(f"  📁 Created directory: {parent_dir}")
+    return True
+
+
 def upload_file(owner, repo, path, content, message):
     """Upload or update a single file in the repo."""
     if DRY_RUN:
         print(f"[Dry-run] Would sync: {owner}/{repo}/{path}")
         return True
+
+    # Ensure parent directory exists
+    if not ensure_directory(owner, repo, path):
+        return False
 
     remote_file = get_remote_file(owner, repo, path)
     data = {
