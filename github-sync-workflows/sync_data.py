@@ -13,6 +13,7 @@ IGNORE_FILES = [
 PATH_MAP = {
     ".github/": ".github/",                     # copy as-is
     "workflows/": ".github/workflows/",         # Data/workflows → .github/workflows/
+    "tools/": "tools/",
 }
 
 # Repositories to sync and their per-repo ignore rules
