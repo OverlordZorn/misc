@@ -12,7 +12,7 @@ Setup script to create or update GitHub labels across multiple repositories.
 import os
 import sys
 import requests
-from labels_data import LABELS
+from labels_data import LABELS, WHITELIST_LABELS
 from repos_data import REPOSITORIES
 
 # ---------------------------
@@ -24,12 +24,6 @@ if not GITHUB_TOKEN:
     sys.exit("❌ ERROR: Missing GitHub token. Pass it via env var GITHUB_TOKEN or as CLI arg.")
 
 DRY_RUN = False
-
-WHITELIST_LABELS = [
-    "Do Not Delete",
-    "Important",
-    "Legacy"
-]
 
 API_BASE = "https://api.github.com"
 
