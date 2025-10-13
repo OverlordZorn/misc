@@ -27,6 +27,10 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json"
 }
 
+# Determine mode
+mode = sys.argv[1] if len(sys.argv) > 1 else "real"
+DRY_RUN = mode == "dry-run"
+
 # ---------------------------
 # HELPER FUNCTIONS
 # ---------------------------
@@ -37,9 +41,15 @@ def create_or_update_label(owner, repo, label):
     response = requests.get(url, headers=HEADERS)
 
     if response.status_code == 200:
+        if DRY_RUN:
+            print(f"🔄 [DRY-RUN] Would update label '{label['name']}' in {owner}/{repo}")
+            return "updated", label['name']
         r = requests.patch(url, headers=HEADERS, json=label)
         return "updated" if r.status_code in (200, 201) else "failed", label['name']
     else:
+        if DRY_RUN:
+            print(f"➕ [DRY-RUN] Would create label '{label['name']}' in {owner}/{repo}")
+            return "created", label['name']
         r = requests.post(f"{API_BASE}/repos/{owner}/{repo}/labels", headers=HEADERS, json=label)
         return "created" if r.status_code in (200, 201) else "failed", label['name']
 
@@ -55,6 +65,10 @@ def delete_untracked_labels(owner, repo, labels_to_keep, whitelist):
     for label in response.json():
         name = label['name']
         if name not in labels_to_keep and name not in whitelist:
+            if DRY_RUN:
+                print(f"🗑️ [DRY-RUN] Would delete label: {name}")
+                deleted_labels.append(name)
+                continue
             r = requests.delete(f"{API_BASE}/repos/{owner}/{repo}/labels/{name}", headers=HEADERS)
             if r.status_code == 204:
                 deleted_labels.append(name)
@@ -65,8 +79,6 @@ def delete_untracked_labels(owner, repo, labels_to_keep, whitelist):
 # ---------------------------
 
 def main():
-    # Determine mode
-    mode = sys.argv[1] if len(sys.argv) > 1 else "real"
     label_names = [label['name'] for label in LABELS]
 
     for repo_entry in REPOSITORIES:
@@ -79,11 +91,12 @@ def main():
         print(f"\n=== 🏷️ Processing {owner}/{repo} ===")
 
         if mode == "purge-only":
+            # Only delete labels, skip creation/update
             deleted = delete_untracked_labels(owner, repo, [], WHITELIST_LABELS)
             repo_summary["deleted"].extend(deleted)
             print(f"⚠️ Purge-only mode: No labels created or updated for {owner}/{repo}")
         else:
-            # Delete untracked labels (only in real or dry-run)
+            # Delete untracked labels
             deleted = delete_untracked_labels(owner, repo, label_names, WHITELIST_LABELS)
             repo_summary["deleted"].extend(deleted)
 
