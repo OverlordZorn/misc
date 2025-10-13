@@ -46,15 +46,3 @@ jobs:
           python github-sync-labels/setup_labels.py $MODE
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # <- used by the Python script
-
-      - name: Commit protocol.md
-        if: ${{ github.event.inputs.mode != 'dry-run' }}
-        run: |
-          cd github-sync-labels
-          git config user.name "OverlordZorn"
-          git config user.email "your-email@example.com"
-          git add protocol.md
-          git diff-index --quiet HEAD || git commit -m "Update sync label protocol"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
