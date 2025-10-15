@@ -116,12 +116,12 @@ def delete_file(owner, repo, path):
     """Delete a file in the repository if it exists."""
     if DRY_RUN:
         print(f"  [Dry-run] Would delete: {path}")
-        return True
+        return False  # return False to indicate "not actually deleted"
 
     existing = get_remote_file(owner, repo, path)
     if not existing or "sha" not in existing:
         print(f"  ⏩ Skipped delete (file not found): {path}")
-        return True
+        return False  # nothing deleted
 
     data = {
         "message": f"🗑️ Delete blacklisted file {path}",
@@ -134,7 +134,7 @@ def delete_file(owner, repo, path):
 
     if r.status_code in (200, 201):
         print(f"  ✅ Deleted: {path}")
-        return True
+        return True  # only increment total_deleted if True
     else:
         try:
             err = r.json().get("message", r.text)
@@ -171,7 +171,7 @@ def main():
                 if ok:
                     total_deleted += 1
                 else:
-                    total_failed += 1
+                    total_failed += 0  # or +=0, just skip
 
         # --- Sync Data/ files into target repo ---
         for root, _, files in os.walk(DATA_DIR):
