@@ -16,6 +16,7 @@ BLACKLIST_FILES = [
     ".github/workflows/arma.yml",
     ".github/workflows/validate.yml",
     ".github/workflows/hemtt.yml",
+    ".github/workflows/update-translation-issue.yml",
 
     "tools/stringtablediag.py",
     "tools/sqf_validator.py",
