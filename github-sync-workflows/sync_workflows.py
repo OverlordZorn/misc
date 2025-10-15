@@ -171,7 +171,7 @@ def main():
                 if ok:
                     total_deleted += 1
                 else:
-                    total_failed += 0  # or +=0, just skip
+                    total_skipped += 0  # or +=0, just skip
 
         # --- Sync Data/ files into target repo ---
         for root, _, files in os.walk(DATA_DIR):
