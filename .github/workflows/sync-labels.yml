@@ -27,7 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}      # <-- ensures push access
+          token: ${{ secrets.PAT_OVERLORDZORN }}      # <-- ensures push access
           persist-credentials: true
 
       - name: Set up Python
@@ -45,4 +45,4 @@ jobs:
           echo "Running Snyc Labels in $MODE mode..."
           python github-sync-labels/setup_labels.py $MODE
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # <- used by the Python script
+          GITHUB_TOKEN: ${{ secrets.PAT_OVERLORDZORN }}  # <- used by the Python script
