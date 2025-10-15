@@ -163,20 +163,22 @@ def main():
         repo = repo_info["repo"]
         print(f"\n📦 {owner}/{repo}")
 
+        # --- Handle blacklisted files first ---
+        if BLACKLIST_FILES:
+            print("  🧹 Checking for blacklisted files...")
+            for path in BLACKLIST_FILES:
+                ok = delete_file(owner, repo, path)
+                if ok:
+                    total_deleted += 1
+                else:
+                    total_failed += 1
+
+        # --- Sync Data/ files into target repo ---
         for root, _, files in os.walk(DATA_DIR):
             for file in files:
                 full_path = os.path.join(root, file)
                 relative_path = os.path.relpath(full_path, DATA_DIR).replace("\\", "/")
                 mapped_path = map_relative_path(relative_path)
-
-                # --- Blacklist handling ---
-                if mapped_path in BLACKLIST_FILES:
-                    ok = delete_file(owner, repo, mapped_path)
-                    if ok:
-                        total_deleted += 1
-                    else:
-                        total_failed += 1
-                    continue  # skip to next file
 
                 # --- Ignore handling ---
                 if should_ignore(repo_info, relative_path):
@@ -217,6 +219,7 @@ def main():
         sys.exit(1)
     else:
         print("\n🎉 Sync complete!")
+
 
 
 if __name__ == "__main__":
